@@ -1,0 +1,6 @@
+venv
+.idea
+__pycahce__
+.vscode
+config.py
+
