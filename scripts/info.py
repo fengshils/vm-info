@@ -15,15 +15,16 @@ db.add_pool('default', host=config.MYSQL_HOST, port=config.MYSQL_PORT, user=conf
 
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect, SmartConnectNoSSL
+from pprint import pprint
 import atexit
 import argparse
-from pprint import pprint
+
 
 def get_args():
-    args = {'host':'192.168.150.206',
+    args = {'host':'192.168.150.218',
             'user':'root',
             'port': 443,
-            'password':'password'
+            'password':'1qaz@WSX'
             }
     return args
 
@@ -37,16 +38,14 @@ def get_obj(content, vimtype, name=None):
     return obj
 
 
-def main():
+def main(v_center):
     esxi_host = {}
-    args = get_args()
-    print(args)
     # connect this thing
     si = SmartConnectNoSSL(
-            host=args['host'],
-            user=args['user'],
-            pwd=args['password'],
-            port=args['port'])
+            host=v_center['ip'],
+            user=v_center['user'],
+            pwd=v_center['password'],
+            port=443)
     # disconnect this thing
     atexit.register(Disconnect, si)
     content = si.RetrieveContent()
@@ -59,11 +58,11 @@ def main():
         for i in esxi.summary.hardware.otherIdentifyingInfo:
             if isinstance(i, vim.host.SystemIdentificationInfo):
                 esxi_host[esxi.name]['esxi_info']['SN'] = i.identifierValue
-        esxi_host[esxi.name]['esxi_info']['处理器'] = '数量：%s 核数：%s 线程数：%s 频率：%s(%s) ' % (esxi.summary.hardware.numCpuPkgs,
+        esxi_host[esxi.name]['esxi_info']['处理器'] = '数量：%s 核数：%s 线程数：%s 频率：%s ' % (esxi.summary.hardware.numCpuPkgs,
                                                                                       esxi.summary.hardware.numCpuCores,
                                                                                       esxi.summary.hardware.numCpuThreads,
-                                                                                      esxi.summary.hardware.cpuMhz,
-                                                                                      esxi.summary.hardware.cpuModel)
+                                                                                      esxi.summary.hardware.cpuMhz)
+        db.default.v_center.filter(id=v_center['id']).update(cpu=esxi_host[esxi.name]['esxi_info']['处理器'])
         esxi_host[esxi.name]['esxi_info']['处理器使用率'] = '%.1f%%' % (esxi.summary.quickStats.overallCpuUsage /
                                                        (esxi.summary.hardware.numCpuPkgs * esxi.summary.hardware.numCpuCores * esxi.summary.hardware.cpuMhz) * 100)
         esxi_host[esxi.name]['esxi_info']['内存(MB)'] = esxi.summary.hardware.memorySize/1024/1024
@@ -71,16 +70,26 @@ def main():
         esxi_host[esxi.name]['esxi_info']['内存使用率'] = '%.1f%%' % ((esxi.summary.quickStats.overallMemoryUsage / (esxi.summary.hardware.memorySize/1024/1024)) * 100)
         esxi_host[esxi.name]['esxi_info']['系统'] = esxi.summary.config.product.fullName
 
+        # print(esxi_host[esxi.name]['esxi_info']['内存(MB)'], esxi_host[esxi.name]['esxi_info']['可用内存(MB)'], esxi_host[esxi.name]['esxi_info']['系统'])
+        # db.default.v_center.filter(id=v_center['id']).update(memory=esxi_host[esxi.name]['esxi_info']['内存(MB)'],
+        #                                                 available_memory = esxi_host[esxi.name]['esxi_info']['可用内存(MB)'],
+        #                                                 system = esxi_host[esxi.name]['esxi_info']['系统'],
+        #                                                 disk = esxi.datastore,
+        #                                                 )
+        disk = []
         for ds in esxi.datastore:
             esxi_host[esxi.name]['datastore'][ds.name] = {}
             esxi_host[esxi.name]['datastore'][ds.name]['总容量(G)'] = int((ds.summary.capacity)/1024/1024/1024)
             esxi_host[esxi.name]['datastore'][ds.name]['空闲容量(G)'] = int((ds.summary.freeSpace)/1024/1024/1024)
             esxi_host[esxi.name]['datastore'][ds.name]['类型'] = (ds.summary.type)
-        pprint(esxi_host[esxi.name]['datastore'])
-        for nt in esxi.network:
-            esxi_host[esxi.name]['network'][nt.name] = {}
-            esxi_host[esxi.name]['network'][nt.name]['标签ID'] = nt.name
-
+        db.default.v_center.filter(id=v_center['id']).update(memory=esxi_host[esxi.name]['esxi_info']['内存(MB)'],
+                                                        available_memory = esxi_host[esxi.name]['esxi_info']['可用内存(MB)'],
+                                                        system = esxi_host[esxi.name]['esxi_info']['系统'],
+                                                        disk = str(esxi_host[esxi.name]['datastore']),
+                                                        )
+        # for nt in esxi.network:
+        #     esxi_host[esxi.name]['network'][nt.name] = {}
+        #     esxi_host[esxi.name]['network'][nt.name]['标签ID'] = nt.name
         # for vm in esxi.vm:
         #     esxi_host[esxi.name]['vm'][vm.name] = {}
         #     esxi_host[esxi.name]['vm'][vm.name]['电源状态'] = vm.runtime.powerState
@@ -95,39 +104,17 @@ def main():
         #     for d in vm.config.hardware.device:
         #         if isinstance(d, vim.vm.device.VirtualDisk):
         #             esxi_host[esxi.name]['vm'][vm.name][d.deviceInfo.label] = str((d.capacityInKB)/1024/1024) + ' GB'
-    # db.default.pet.filter(id=1).update(name=u'龙猫')
-    # f = open(args['host'] + '.txt', 'w')
-    # for host in esxi_host:
-    #     print('ESXI IP:', host)
-    #     f.write('ESXI IP: %s \n' % host)
-    #     for hd in esxi_host[host]['esxi_info']:
-    #         print('  %s:    %s' % (hd, esxi_host[host]['esxi_info'][hd]))
-    #         f.write('  %s:    %s' % (hd, esxi_host[host]['esxi_info'][hd]))
-    #     for ds in esxi_host[host]['datastore']:
-    #         print('  存储名称：', ds)
-    #
-    #         f.write('  存储名称： %s \n' % ds)
-    #         for k in esxi_host[host]['datastore'][ds]:
-    #             print('       %s:  %s' % (k, esxi_host[host]['datastore'][ds][k]))
-    #             f.write('       %s:  %s \n' % (k, esxi_host[host]['datastore'][ds][k]))
-    #     for nt in esxi_host[host]['network']:
-    #         print('  网络名称：', nt)
-    #         f.write('  网络名称：%s \n' % nt)
-    #         for k in esxi_host[host]['network'][nt]:
-    #             print('        %s:  %s' % (k, esxi_host[host]['network'][nt][k]))
-    #             f.write('        %s:  %s \n' % (k, esxi_host[host]['network'][nt][k]))
-    #     # for vmachine in esxi_host[host]['vm']:
-    #     #     print('  虚拟机名称：', vmachine)
-    #     #     f.write('  虚拟机名称：%s \n' % vmachine)
-    #     #     for k in esxi_host[host]['vm'][vmachine]:
-    #     #         print('        %s:  %s' % (k, esxi_host[host]['vm'][vmachine][k]))
-    #     #         f.write('        %s:  %s \n' % (k, esxi_host[host]['vm'][vmachine][k]))
-    # f.close()
+
+
 
 
 if __name__ == '__main__':
-    main()
+    # main()
 
-    # v_centers = db.default.fetchall("select * from v_center")
-    # for v_center in v_centers:
-    #     print(v_center)
+    v_centers = db.default.fetchall_dict("select * from v_center")
+    for v_center in v_centers:
+        print(v_center)
+        try:
+            main(v_center)
+        except BaseException as e:
+            print(e)

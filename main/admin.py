@@ -3,7 +3,7 @@ from .models import Vms, VCenter
 
 # Register your models here.
 class VcenterAdmin(admin.ModelAdmin):
-    list_display = ('name', 'ip', 'remarks')
+    list_display = ('name', 'ip', 'remarks','disk')
     #筛选器
     list_filter =('name', 'ip') #过滤器
     search_fields =('name', 'ip') #搜索字段

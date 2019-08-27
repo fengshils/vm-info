@@ -15,6 +15,11 @@ class VCenter(models.Model):
     password = models.CharField(max_length=32, blank=True, null=True)
     remarks = models.CharField(verbose_name='备注',max_length=255, blank=True, null=True)
     exsi_version = models.CharField(max_length=16, blank=True, null=True)
+    memory = models.IntegerField(verbose_name='内存', null=True)
+    available_memory = models.CharField(verbose_name='可用内存', null=True, max_length=64)
+    system = models.CharField(max_length=255, verbose_name='操作系统', null=True)
+    cpu = models.CharField(max_length=255, verbose_name='CPU信息', null=True)
+    disk = models.TextField( verbose_name='存储信息', null=True)
 
     class Meta:
         managed = True
